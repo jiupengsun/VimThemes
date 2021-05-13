@@ -1,58 +1,64 @@
-set nocompatible
-set tabstop=2
-set shiftwidth=2
-set nu
-set ru
-set autoindent
-set smartindent
-set cindent
-set nobackup
-set noswapfile
-set ignorecase
-set enc=utf-8
-set fencs=utf-8,gb2312,gbk
-set encoding=utf-8
+source $LOCAL_ADMIN_SCRIPTS/master.vimrc
+source $LOCAL_ADMIN_SCRIPTS/vim/pyre.vim
+source $LOCAL_ADMIN_SCRIPTS/vim/toggle_comment.vim
+source $LOCAL_ADMIN_SCRIPTS/vim/biggrep.vim
+set number
+set tags=tags;/
 
-if has("win32")
-	"windows platform
-	set guifont=Monospace:h14
-	colorscheme torte
+" for c++: fold #includes and namespaces
+""""""""""""""""""""""""""""""""""""""""
+function! Fold_Includes(ln)
+  let cur_line = getline(a:ln)
+  let prev_line = getline(a:ln - 1)
+
+  " skip empty lines
+  let empty_regex = '^\s*$'
+  if cur_line =~ empty_regex
+    return -1
+  endif
+
+  if cur_line[:8] == '#include '
+    return (prev_line[:8] == '#include ' ||
+          \ prev_line =~ empty_regex) ? 1 : '>1'
+  endif
+
+  if cur_line[:9] == 'namespace '
+    return prev_line[:9] == 'namespace ' ? 1 : '>1'
+  endif
+
+  let end_ns_regex = '^}}*\s*//\s*namespace'
+  if cur_line =~ end_ns_regex
+    return prev_line =~ end_ns_regex ? 1 : '>1'
+  endif
+
+  return 0
+endfunction
+
+au FileType c,cpp setlocal foldexpr=Fold_Includes(v:lnum) foldmethod=expr
+""""""""""""""""""""""""""""""""""""""""
+
+set t_Co=256
+execute pathogen#infect()
+syntax enable
+set background=dark
+colorscheme solarized
+
+" Format targets on save
+autocmd BufWritePost TARGETS silent! exec \ '!~/fbsource/tools/third-party/buildifier/run_buildifier.py -i %' | :e
+
+" fzf or myc depending on dir
+if getcwd() =~ '/fbsource/fbcode$'
+  nnoremap <leader>a :Fbgs<Space>
+  nnoremap <C-p> :MYC<CR>
+elseif getcwd() =~ '/configerator'
+  nnoremap <leader>a :CBGS<Space>
+  nnoremap <C-p> :Files<CR>
 else
-	" distinguish vim and gvim
-	if has('gui_running')
-		"gvim
-		set guifont=Courier\ 10\ Pitch\ 14	
-		"colorscheme desert
-		"colorscheme welpe
-		"colorscheme ego
-		colorscheme mod8
-	else
-		"vim
-		set guifont=Courier\ New\ 14
-		colorscheme torte
-	endif
+  nnoremap <Leader>a :Rg<CR>
+  nnoremap <C-p> :Files<CR>
 endif
 
-set guioptions-=m
-set guioptions-=T
-set guioptions-=L
-set guioptions-=1
-set cot-=preview
-set cot=menu
-syntax on
-filetype plugin indent on
+nnoremap <leader>l :exec '!arc lint -a %'<cr>
 
-
-" automated add comment
-"autocmd BufNewFile *.java exec ":call SetTitle()"
-"func SetTitle()
-"	if expand("%:e") == 'java'
-"		call setline(1, "/*****************************")
-"		call setline(2, "\ @Author: samy")
-"		call setline(3, "\ @Created Time: ".strftime("%c"))
-"		call setline(4, "")
-"		call setline(5, "")
-"		call setline(6, "")
-"		call setline(7, "*****************************/")
-"	endif
-"endfunc
+" WHEN EDITING A TARGETS FILE, USE gf TO GO TO TARGETS FILE UNDER CURSOR#
+autocmd BufNewFile,BufRead TARGETS setlocal includeexpr=substitute(v:fname,'//\\(.*\\)','\\1/TARGETS','g')
